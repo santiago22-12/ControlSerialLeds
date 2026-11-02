@@ -1,0 +1,5 @@
+build/
+mx.scratch
+.settings/
+*.pdsprj.*.workspace
+Project Backups/
