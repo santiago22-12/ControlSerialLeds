@@ -13,7 +13,7 @@
   *   - USART2 (PA2 TX / PA3 RX, 115200 8N1): recepción por DMA + IDLE con la
   *     librería UARTRX. Comandos (no importan mayúsculas/minúsculas):
   *         ENCENDER | APAGAR | CAMBIAR | ESTADO | AYUDA
-  *     Controlan LUZ_SERIAL (PB8).
+  *     Se escriben y se termina con Enter. Controlan LUZ_SERIAL (PB8).
   *
   * Reloj: HSI 16 MHz (sin PLL).
   ******************************************************************************
@@ -78,6 +78,7 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 static void ActualizarLatido(void);
 static void AtenderSerial(void);
+static void EjecutarLinea(const char *linea);
 static void LimpiarComando(const char *origen, char *destino, size_t tam);
 static void CmdEncender(void);
 static void CmdApagar(void);
@@ -160,14 +161,18 @@ static void LimpiarComando(const char *origen, char *destino, size_t tam)
 }
 
 /**
-  * @brief Busca el comando recibido en la tabla y ejecuta su acción.
+  * @brief Busca un comando completo en la tabla y ejecuta su acción.
   */
-static void AtenderSerial(void)
+static void EjecutarLinea(const char *linea)
 {
   char comando[TAM_COMANDO];
   uint32_t i;
 
-  LimpiarComando((const char *)UARTRX1.trama_rx, comando, sizeof(comando));
+  LimpiarComando(linea, comando, sizeof(comando));
+  if (comando[0] == '\0')
+  {
+    return;
+  }
 
   for (i = 0; i < NUM_COMANDOS; i++)
   {
@@ -178,6 +183,33 @@ static void AtenderSerial(void)
     }
   }
   uartx_write_text(&huart2, "Comando no reconocido. Escriba AYUDA\r\n");
+}
+
+/**
+  * @brief Junta los caracteres que llegan (pueden llegar de a uno, como en la
+  *        Virtual Terminal de Proteus) y ejecuta el comando al recibir Enter.
+  */
+static void AtenderSerial(void)
+{
+  static char    linea[TAM_COMANDO];
+  static uint8_t largo = 0;
+  uint16_t i;
+
+  for (i = 0; (i < UARTRX1.num_datos) && (i < UARTRX1.sizeT); i++)
+  {
+    char c = (char)UARTRX1.trama_rx[i];
+
+    if ((c == '\r') || (c == '\n'))
+    {
+      linea[largo] = '\0';
+      EjecutarLinea(linea);
+      largo = 0;
+    }
+    else if (largo < (TAM_COMANDO - 1U))
+    {
+      linea[largo++] = c;
+    }
+  }
 }
 
 static void ActualizarLatido(void)
